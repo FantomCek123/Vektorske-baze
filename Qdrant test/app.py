@@ -24,12 +24,12 @@ def main():
         PointStruct(id=2, vector=[0.8, 0.05, 0.1, 0.1], payload={"naslov": "Inception", "zanr": "Sci-Fi"}),
         PointStruct(id=3, vector=[0.0, 0.0, 0.8, 0.9], payload={"naslov": "The Notebook", "zanr": "Romance"})
     ]
-
+ 
 
     client.upsert(collection_name=COLLECTION_NAME, wait=True, points=filmovi)
 
     print("\n3. Izvršavam REST HTTP vektorsku pretragu...")
-    upit_vektor = [0.3, 0.0, 0.8, 0.9]
+    upit_vektor = [0.9, 0.2, 0.0, 0.0]
 
 
     odgovor = client.query_points(
@@ -49,7 +49,7 @@ def main():
             must=[
                 FieldCondition(
                     key="zanr",
-                    match=MatchValue(value="Sci-Fi")
+                    match=MatchValue(value="Romance")
                 )
             ]
         ),
@@ -57,7 +57,7 @@ def main():
     )
 
     for pogodak in filtrirani_odgovor.points:
-        print(f" -> [Sci-Fi] Film: {pogodak.payload['naslov']} | Sličnost: {pogodak.score:.4f}")
+        print(f" -> [Romance] Film: {pogodak.payload['naslov']} | Sličnost: {pogodak.score:.4f}")
 
 if __name__ == "__main__":
     main()

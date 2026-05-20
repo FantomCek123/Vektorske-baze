@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  postgres-db:
+    image: pgvector/pgvector:pg16
+    container_name: pgvector_lokalno
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: moj_user
+      POSTGRES_PASSWORD: moja_sifra
+      POSTGRES_DB: moji_filmovi
+    restart: unless-stopped
