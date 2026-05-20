@@ -1,5 +1,5 @@
 # ====================================================================
-# LOKALNE BAZE PODATAKA (Folderi sa podacima koje Docker pravi na disku)
+# LOKALNE BAZE PODATAKA (Folderi sa podacima koje Docker pravi na disku)n
 # ====================================================================
 # Dve zvezdice (**/) znače: ignoriši ove foldere bez obzira u kom se podfolderu nalaze
 
