@@ -1,0 +1,54 @@
+# ====================================================================
+# LOKALNE BAZE PODATAKA (Folderi sa podacima koje Docker pravi na disku)
+# ====================================================================
+# Dve zvezdice (**/) znače: ignoriši ove foldere bez obzira u kom se podfolderu nalaze
+
+**/qdrant_storage/
+**/chroma_data/
+**/milvus_data/
+**/.database_data/
+
+# ====================================================================
+# PYTHON OKRUŽENJA I ZAVISNOSTI
+# ====================================================================
+**/venv/
+**/.venv/
+env/
+.env
+bin/
+lib/
+develop-eggs/
+dist/
+eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ====================================================================
+# PRIVREMENI FAJLOVI (Sistemski otpad)
+# ====================================================================
+# Python cache
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Windows sistemi
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Mac sistemi (ako ikada pređeš ili kolega povuče kod)
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code specifična podešavanja (opciono, ali korisno)
+.vscode/
+*.code-workspace
