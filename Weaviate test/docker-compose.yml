@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  weaviate-server:
+    image: semitechnologies/weaviate:1.28.2
+    container_name: weaviate_lokalno
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - ./weaviate_storage:/var/lib/weaviate
+    restart: unless-stopped
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none' 

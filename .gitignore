@@ -3,6 +3,8 @@
 # ====================================================================
 # Dve zvezdice (**/) znače: ignoriši ove foldere bez obzira u kom se podfolderu nalaze
 
+**/weaviate_storage/
+
 **/qdrant_storage/
 **/chroma_data/
 **/milvus_data/
