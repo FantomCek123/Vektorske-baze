@@ -2,7 +2,6 @@ import urllib.parse
 import time
 from pymongo import MongoClient
 
-# 1. Povezivanje na MongoDB Atlas sa bezbednom šifrom
 sifra = "vorkraft1"
 bezbedna_sifra = urllib.parse.quote_plus(sifra)
 MONGO_URI = f"mongodb+srv://stricojebci:{bezbedna_sifra}@cluster0.hamavtb.mongodb.net/?appName=Cluster0"
@@ -24,12 +23,10 @@ def main():
     collection.insert_many(filmovi)
     print(f" -> Uspešno ubačeno {len(filmovi)} filma.")
     
-    # ⏱️ DAJEMO ATLASU VREME DA KOPIŠE PODATKE U VEKTORSKI INDEKS
     print(" -> Čekam 20 sekundi da Atlas u klaudu osveži HNSW indeks...")
     time.sleep(20)
 
     print("\n2. Izvršavam vektorsku pretragu preko $vectorSearch agregacije...")
-    # ... ostatak koda ostaje potpuno isti ...
     upit_vektor = [0.9, 0.2, 0.0, 0.0]
 
     pipeline_pretraga = [
@@ -52,7 +49,6 @@ def main():
         }
     ]
 
-    # Pokrećemo agregaciju direktno da vidimo pravi ispis
     rezultati = list(collection.aggregate(pipeline_pretraga))
     if not rezultati:
         print(" -> Atlas je vratio praznu listu dokumenata.")
