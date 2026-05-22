@@ -1,15 +1,14 @@
 import os
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
 qdrant = QdrantClient(url="http://localhost:6333")
 
 COLLECTION_NAME = "moje_beleske"
 
-# BESPLATNI LOKALNI EMBEDDING MODEL (umesto OpenAI)
-# Kada prvi put pokreneš skriptu, skinuće se model (oko 400MB), posle radi offline.
+
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
