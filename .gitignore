@@ -6,7 +6,7 @@
 **/weaviate_storage/
 **/postgres_data/
 **/slike/
-**/slike_test/
+**/test_slike/
 
 **/qdrant_storage/
 **/chroma_data/
