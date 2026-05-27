@@ -1,7 +1,7 @@
 import os
 import re
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, VectorParams, PointStruct, ProductQuantization, ProductQuantizationConfig, CompressionRatio
 from langchain_huggingface import HuggingFaceEmbeddings
 
 qdrant = QdrantClient(url="http://localhost:6333")
@@ -15,7 +15,13 @@ def init_collection():
     else:
         qdrant.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=384, distance=Distance.COSINE)
+            vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+            quantization_config=ProductQuantization(
+                product=ProductQuantizationConfig(
+                    compression=CompressionRatio.X16,
+                    always_ram=True
+                )
+            )
         )
         print(f"Uspešno kreirana nova kolekcija: '{COLLECTION_NAME}'")
 
@@ -45,7 +51,6 @@ def ingest_document(putanja_do_fajla):
     chunks = chunk_screenplay_by_scenes(raw_text)
     
     points = []
-    print(f"Ukupno pronađeno {len(chunks)} scena. Krećem sa generisanjem vektora (ovo može potrajati)...")
     
     for index, chunk in enumerate(chunks):
         if len(chunk.strip()) < 15:
@@ -53,8 +58,7 @@ def ingest_document(putanja_do_fajla):
             
         kontekstualni_tekst = f"[Film: Taxi Driver | Scena {index + 1}]\n{chunk}"
         
-        if index % 20 == 0: 
-            print(f"Indeksiram scenu {index + 1}/{len(chunks)}...")
+        print(f"Indeksiram scenu {index + 1}/{len(chunks)}...")
 
         vector = embedding_model.embed_query(kontekstualni_tekst)
         
@@ -69,9 +73,8 @@ def ingest_document(putanja_do_fajla):
         )
         points.append(point)
         
-
     qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
-    print(f"\nUspelo! Ubačeno {len(points)} pametnih scena u Qdrant bazu.")
+    print(f"\nUspelo! Ubačeno {len(points)} pametnih scena u Qdrant bazu sa PQ optimizacijom.")
 
 if __name__ == "__main__":
     init_collection()

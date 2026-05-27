@@ -1,12 +1,18 @@
 import os
 import re
+import time
+import torch
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from langchain_huggingface import HuggingFaceEmbeddings
 
-print("Inicijalizacija LOKALNOG BGE-M3 modela (1024 dimenzije)...")
+if torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+
 model_name = "BAAI/bge-m3"
-model_kwargs = {"device": "cuda"}
+model_kwargs = {"device": device}
 encode_kwargs = {"normalize_embeddings": True}
 
 embedding_model = HuggingFaceEmbeddings(
@@ -27,8 +33,7 @@ def init_collection():
         collection_name=COLLECTION_NAME,
         vectors_config=VectorParams(size=1024, distance=Distance.COSINE)
     )
-    print("Nova čista BGE-M3 kolekcija (1024 dimenzije) je spremna.")
-
+    
 def chunk_screenplay_by_scenes(text):
     raw_scenes = re.split(r'(CUT TO:|INT\.|EXT\.)', text)
     chunks = []
@@ -50,10 +55,12 @@ def chunk_screenplay_by_scenes(text):
 def ingest_document(putanja_do_fajla):
     with open(putanja_do_fajla, "r", encoding="utf-8", errors="ignore") as f:
         raw_text = f.read().strip()
-        
+
     chunks = chunk_screenplay_by_scenes(raw_text)
     points = []
     print(f"Ukupno pronađeno {len(chunks)} scena. Krećem sa generisanjem vektora...")
+    
+    start_vreme = time.time()
     
     for index, chunk in enumerate(chunks):
         if len(chunk.strip()) < 15:
@@ -78,7 +85,10 @@ def ingest_document(putanja_do_fajla):
         points.append(point)
         
     qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
+    
+    kraj_vreme = time.time() - start_vreme
     print(f"\nUspelo! Ubačeno {len(points)} pametnih scena u Qdrant bazu.")
+    print(f"⏱️ Vreme potrebno za indeksiranje scena: {kraj_vreme:.2f} sekundi.")
 
 if __name__ == "__main__":
     init_collection()

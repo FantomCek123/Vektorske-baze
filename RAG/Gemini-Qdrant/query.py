@@ -2,7 +2,7 @@ import os
 from qdrant_client import QdrantClient
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyC7AZJbIZO-75VIC4rI17FsHH5VwY8NeRc"
+os.environ["GOOGLE_API_KEY"] = "AIzaSyCCDxHT3g2jzUcwGBFta9RzKOZg-Ql5n2A"
 
 print("Inicijalizacija Gemini modela...")
 embedding_model = GoogleGenerativeAIEmbeddings(

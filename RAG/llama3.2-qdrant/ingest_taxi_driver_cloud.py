@@ -1,13 +1,12 @@
 import os
 import re
+import requests
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
-from langchain_huggingface import HuggingFaceEmbeddings
 
 qdrant = QdrantClient(url="http://localhost:6333")
-COLLECTION_NAME = "taxi_driver_screenplay"  
-
-embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+COLLECTION_NAME = "taxi_driver_screenplay_cloud_v2"  
+API_KEY = "AIzaSyCCDxHT3g2jzUcwGBFta9RzKOZg-Ql5n2A"
 
 def init_collection():
     if qdrant.collection_exists(collection_name=COLLECTION_NAME):
@@ -15,7 +14,7 @@ def init_collection():
     else:
         qdrant.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=384, distance=Distance.COSINE)
+            vectors_config=VectorParams(size=3072, distance=Distance.COSINE)
         )
         print(f"Uspešno kreirana nova kolekcija: '{COLLECTION_NAME}'")
 
@@ -37,6 +36,17 @@ def chunk_screenplay_by_scenes(text):
         
     return chunks
 
+def get_gemini_embedding(text):
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-embedding-001:embedContent?key={API_KEY}"
+    payload = {
+        "content": {
+            "parts": [{"text": text}]
+        }
+    }
+    response = requests.post(url, json=payload, timeout=30)
+    response.raise_for_status()
+    return response.json()["embedding"]["values"]
+
 def ingest_document(putanja_do_fajla):
     with open(putanja_do_fajla, "r", encoding="utf-8") as f:
         raw_text = f.read()
@@ -45,18 +55,21 @@ def ingest_document(putanja_do_fajla):
     chunks = chunk_screenplay_by_scenes(raw_text)
     
     points = []
-    print(f"Ukupno pronađeno {len(chunks)} scena. Krećem sa generisanjem vektora (ovo može potrajati)...")
+    print(f"Ukupno pronađeno {len(chunks)} scena. Generisanje cloud vektora...")
     
     for index, chunk in enumerate(chunks):
         if len(chunk.strip()) < 15:
             continue
             
         kontekstualni_tekst = f"[Film: Taxi Driver | Scena {index + 1}]\n{chunk}"
-        
-        if index % 20 == 0: 
-            print(f"Indeksiram scenu {index + 1}/{len(chunks)}...")
+         
+        print(f"Indeksiram scenu {index + 1}/{len(chunks)}...")
 
-        vector = embedding_model.embed_query(kontekstualni_tekst)
+        try:
+            vector = get_gemini_embedding(kontekstualni_tekst)
+        except Exception as e:
+            print(f"Greška na sceni {index + 1}: {e}")
+            continue
         
         point = PointStruct(
             id=index + 1,
@@ -68,18 +81,17 @@ def ingest_document(putanja_do_fajla):
             }
         )
         points.append(point)
-        
 
-    qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
-    print(f"\nUspelo! Ubačeno {len(points)} pametnih scena u Qdrant bazu.")
+    if points:
+        qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
+        print(f"\nUspelo! Ubačeno {len(points)} scena u cloud kolekciju.")
+    else:
+        print("\nGreška: Nema generisanih vektora za ubacivanje.")
 
 if __name__ == "__main__":
     init_collection()
-    
     putanja_scenarija = "Taxi-Driver-Script.txt" 
-    
     if os.path.exists(putanja_scenarija):
-        print(f"Pronađen fajl {putanja_scenarija}. Pokrećem unos...")
         ingest_document(putanja_scenarija)
     else:
-        print(f"Greška: Fajl '{putanja_scenarija}' se ne nalazi u ovom folderu. Proveri putanju!")
+        print(f"Greška: Fajl '{putanja_scenarija}' nedostaje!")

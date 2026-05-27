@@ -2,40 +2,47 @@ import os
 import time
 import requests
 import streamlit as st
+from pinecone import Pinecone
 from qdrant_client import QdrantClient
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv  # Vraćeno: Uvoz za .env
+
+# Učitavanje promenljivih iz .env fajla
+load_dotenv()
+
+INDEX_NAME = "lab-vezba-cloud"
+COLLECTION_NAME = "taxi_driver_screenplay"
+
+PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 st.set_page_config(page_title="Filmski RAG Asistent", layout="wide")
 
 @st.cache_resource
-def init_cloud_clients():
+def init_local_clients():
     qdrant_client = QdrantClient(url="http://localhost:6333")
+    embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    return qdrant_client, embedding_model
+
+@st.cache_resource
+def init_cloud_clients():
+    pc = Pinecone(api_key=PINECONE_API_KEY)
+    index_client = pc.Index(INDEX_NAME)
+    
     embedding_model = GoogleGenerativeAIEmbeddings(
-        model="models/text-embedding-004",
-        google_api_key=os.environ.get("AIzaSyCCDxHT3g2jzUcwGBFta9RzKOZg-Ql5n2A")
+        model="gemini-embedding-2-preview",
+        output_dimensionality=768,
+        google_api_key=GEMINI_API_KEY
     )
+    
     llm = ChatGoogleGenerativeAI(
         model="gemini-1.5-flash",
-        google_api_key=os.environ.get("AIzaSyCCDxHT3g2jzUcwGBFta9RzKOZg-Ql5n2A"),
+        google_api_key=GEMINI_API_KEY,
         temperature=0.1
     )
-    return qdrant_client, embedding_model, llm
-
-#@st.cache_resource
-#def init_cloud_clients():
-#    qdrant_client = QdrantClient(url="http://localhost:6333")
-#    embedding_model = GoogleGenAIEmbeddings(
-#        model="models/text-embedding-004",
-#        google_api_key=os.environ.get("GEMINI_API_KEY")
-#    )
-#    llm = ChatGoogleGenerativeAI(
-#        model="gemini-1.5-flash",
-#        google_api_key=os.environ.get("GEMINI_API_KEY"),
-#        temperature=0.1
-#    )
-#    return qdrant_client, embedding_model, llm
+    return index_client, embedding_model, llm
 
 with st.sidebar:
     st.title("Podešavanja")
@@ -53,11 +60,11 @@ def ask_local_rag(user_query):
     try:
         query_vector = embedding_local.embed_query(user_query)
     except Exception as e:
-        return f"Greška pri generisanju vektora: {e}", 0, 0
+        return f"Greška pri generisanju lokalnog vektora: {e}", 0, 0
 
     try:
         search_results = qdrant_local.query_points(
-            collection_name="taxi_driver_screenplay",
+            collection_name=COLLECTION_NAME,
             query=query_vector,
             limit=1,  
             with_payload=True
@@ -84,12 +91,12 @@ def ask_local_rag(user_query):
         vreme_generisanja = time.time() - start_generisanje
         odgovor = response.json()["message"]["content"]
     except Exception as e:
-        return f"Greška pri generisanju: {e}", vreme_pretrage, 0
+        return f"Greška pri lokalnom generisanju (Ollama): {e}", vreme_pretrage, 0
 
     return odgovor, vreme_pretrage, vreme_generisanja
 
 def ask_cloud_rag(user_query):
-    qdrant_cloud, embedding_cloud, llm = init_cloud_clients()
+    index_client, embedding_cloud, llm = init_cloud_clients()
     start_pretraga = time.time()
     
     try:
@@ -98,17 +105,16 @@ def ask_cloud_rag(user_query):
         return f"Greška pri generisanju cloud vektora: {e}", 0, 0
 
     try:
-        search_results = qdrant_cloud.query_points(
-            collection_name="taxi_driver_screenplay_cloud",
-            query=query_vector,
-            limit=1,  
-            with_payload=True
+        search_results = index_client.query(
+            vector=query_vector,
+            top_k=1,
+            include_metadata=True
         )
     except Exception as e:
-        return f"Greška pri pretrazi Qdrant baze: {e}", 0, 0
+        return f"Greška pri pretrazi Pinecone baze: {e}", 0, 0
     
     vreme_pretrage = time.time() - start_pretraga
-    context = "Nema pronađenog konteksta." if not search_results.points else search_results.points[0].payload["text"]
+    context = "Nema pronađenog konteksta." if not search_results.matches else search_results.matches[0].metadata["text"]
     prompt = f"Odgovori kratko na srpskom jeziku. Kontekst: {context} Pitanje: {user_query}"
 
     start_generisanje = time.time()
