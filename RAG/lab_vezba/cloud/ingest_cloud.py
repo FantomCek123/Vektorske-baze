@@ -1,168 +1,83 @@
 import os
-import time
-import requests
-import streamlit as st
+import re
 from pinecone import Pinecone
-from qdrant_client import QdrantClient
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
-from dotenv import load_dotenv  # Vraćeno: Uvoz za .env
-
-# Učitavanje promenljivih iz .env fajla
+from dotenv import load_dotenv
 load_dotenv()
 
 INDEX_NAME = "lab-vezba-cloud"
-COLLECTION_NAME = "taxi_driver_screenplay"
-
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-st.set_page_config(page_title="Filmski RAG Asistent", layout="wide")
+pc = Pinecone(api_key=PINECONE_API_KEY)
+index = pc.Index(INDEX_NAME)
 
-@st.cache_resource
-def init_local_clients():
-    qdrant_client = QdrantClient(url="http://localhost:6333")
-    embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    return qdrant_client, embedding_model
+embedding_model = GoogleGenerativeAIEmbeddings(
+    model="gemini-embedding-2-preview",
+    output_dimensionality=768,
+    google_api_key=GEMINI_API_KEY
+)
 
-@st.cache_resource
-def init_cloud_clients():
-    pc = Pinecone(api_key=PINECONE_API_KEY)
-    index_client = pc.Index(INDEX_NAME)
+def chunk_screenplay_by_scenes(text):
+    """Deli tekst scenarija na logičke celine prema oznakama za scene"""
+    raw_scenes = re.split(r'(CUT TO:|INT\.|EXT\.)', text)
+    chunks = []
+    current_chunk = ""
     
-    embedding_model = GoogleGenerativeAIEmbeddings(
-        model="gemini-embedding-2-preview",
-        output_dimensionality=768,
-        google_api_key=GEMINI_API_KEY
-    )
-    
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
-        google_api_key=GEMINI_API_KEY,
-        temperature=0.1
-    )
-    return index_client, embedding_model, llm
-
-with st.sidebar:
-    st.title("Podešavanja")
-    rezim_rada = st.radio(
-        "Izaberi model pretrage:",
-        ("Local", "Cloud"),
-    )
-    st.markdown("---")
-    placeholder_stats = st.empty()
-
-def ask_local_rag(user_query):
-    qdrant_local, embedding_local = init_local_clients()
-    start_pretraga = time.time()
-    
-    try:
-        query_vector = embedding_local.embed_query(user_query)
-    except Exception as e:
-        return f"Greška pri generisanju lokalnog vektora: {e}", 0, 0
-
-    try:
-        search_results = qdrant_local.query_points(
-            collection_name=COLLECTION_NAME,
-            query=query_vector,
-            limit=1,  
-            with_payload=True
-        )
-    except Exception as e:
-        return f"Greška pri pretrazi Qdrant baze: {e}", 0, 0
-    
-    vreme_pretrage = time.time() - start_pretraga
-    context = "Nema pronađenog konteksta." if not search_results.points else search_results.points[0].payload["text"]
-    prompt = f"Odgovori kratko na srpskom jeziku. Kontekst: {context} Pitanje: {user_query}"
-
-    start_generisanje = time.time()
-    try:
-        response = requests.post("http://localhost:11434/api/chat", json={
-            "model": "llama3.2",
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": False,
-            "options": {
-                "num_predict": 50,  
-                "temperature": 0.1,
-                "num_ctx": 1024
-            }
-        }, timeout=300)
-        vreme_generisanja = time.time() - start_generisanje
-        odgovor = response.json()["message"]["content"]
-    except Exception as e:
-        return f"Greška pri lokalnom generisanju (Ollama): {e}", vreme_pretrage, 0
-
-    return odgovor, vreme_pretrage, vreme_generisanja
-
-def ask_cloud_rag(user_query):
-    index_client, embedding_cloud, llm = init_cloud_clients()
-    start_pretraga = time.time()
-    
-    try:
-        query_vector = embedding_cloud.embed_query(user_query)
-    except Exception as e:
-        return f"Greška pri generisanju cloud vektora: {e}", 0, 0
-
-    try:
-        search_results = index_client.query(
-            vector=query_vector,
-            top_k=1,
-            include_metadata=True
-        )
-    except Exception as e:
-        return f"Greška pri pretrazi Pinecone baze: {e}", 0, 0
-    
-    vreme_pretrage = time.time() - start_pretraga
-    context = "Nema pronađenog konteksta." if not search_results.matches else search_results.matches[0].metadata["text"]
-    prompt = f"Odgovori kratko na srpskom jeziku. Kontekst: {context} Pitanje: {user_query}"
-
-    start_generisanje = time.time()
-    try:
-        response = llm.invoke(prompt)
-        vreme_generisanja = time.time() - start_generisanje
-        odgovor = response.content
-    except Exception as e:
-        return f"Greška pri generisanju preko Gemini API: {e}", vreme_pretrage, 0
-
-    return odgovor, vreme_pretrage, vreme_generisanja
-
-left_pad, main_col, right_pad = st.columns([1, 2, 1])
-
-with main_col:
-    st.title("Taxi Driver chatbot")
-    st.markdown("---")
-    input_placeholder = st.container()
-
-with input_placeholder:
-    user_pitanje = st.chat_input("Postavi pitanje...")
-
-if user_pitanje:
-    with main_col:
-        with st.chat_message("user"):
-            st.write(user_pitanje)
+    for part in raw_scenes:
+        if part in ["CUT TO:", "INT.", "EXT."]:
+            if current_chunk.strip():
+                chunks.append(current_chunk.strip())
+            current_chunk = part + " "
+        else:
+            current_chunk += part
             
-        with st.chat_message("assistant"):
-            with st.spinner("AI analizira..."):
-                if rezim_rada == "Local":
-                    odgovor, t_search, t_gen = ask_local_rag(user_pitanje)
-                else:
-                    odgovor, t_search, t_gen = ask_cloud_rag(user_pitanje)
-                st.write(odgovor)
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
         
-    with placeholder_stats.container():
-        st.markdown("### Statistika poslednjeg upita")
-        st.metric("Pretraga (Vektori)", f"{t_search:.3f} s")
-        st.metric("Generisanje (Model)", f"{t_gen:.3f} s")
-        st.metric("Ukupno", f"{t_search + t_gen:.3f} s")
+    return chunks
 
-st.markdown("""
-    <style>
-    .stChatFloatingInputContainer {
-        left: 0 !important;
-        right: 0 !important;
-        margin: auto !important;
-        width: 50% !important; 
-    }
-    </style>
-""", unsafe_allow_html=True)
+def ingest_to_cloud(putanja_do_fajla):
+    """Čita scenario, pretvara scene u Gemini vektore i šalje ih na Pinecone"""
+    with open(putanja_do_fajla, "r", encoding="utf-8") as f:
+        raw_text = f.read()
+        
+    print("Delim scenario na logičke scene...")
+    chunks = chunk_screenplay_by_scenes(raw_text)
+    
+    vectors_to_upsert = []
+    
+    for index_num, chunk in enumerate(chunks):
+        if len(chunk.strip()) < 15:
+            continue
+            
+        kontekstualni_tekst = f"[Film: Taxi Driver | Scena {index_num + 1}]\n{chunk}"
+        print(f"Generišem Gemini cloud vektor za scenu {index_num + 1}/{len(chunks)}...")
+
+        # Generisanje embeddinga preko Gemini API-ja
+        vector = embedding_model.embed_query(kontekstualni_tekst)
+        
+        # Pakovanje u Pinecone format (ID mora biti string)
+        point = {
+            "id": f"scena_{index_num + 1}",
+            "values": vector,
+            "metadata": {
+                "text": kontekstualni_tekst,
+                "film": "Taxi Driver",
+                "scena_broj": index_num + 1
+            }
+        }
+        vectors_to_upsert.append(point)
+        
+    # Slanje podataka na Pinecone Cloud
+    print("\nŠaljem vektore na Pinecone...")
+    index.upsert(vectors=vectors_to_upsert)
+    print(f"Uspelo! Ubačeno {len(vectors_to_upsert)} scena u Pinecone Cloud indeks.")
+
+if __name__ == "__main__":
+    putanja_scenarija = "Taxi-Driver-Script.txt" 
+    
+    if os.path.exists(putanja_scenarija):
+        ingest_to_cloud(putanja_scenarija)
+    else:
+        print(f"Greška: Fajl '{putanja_scenarija}' ne postoji u ovom folderu!")

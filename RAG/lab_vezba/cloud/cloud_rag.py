@@ -9,7 +9,7 @@ INDEX_NAME = "lab-vezba-cloud"
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def init_cloud_clients():
     pc = Pinecone(api_key=PINECONE_API_KEY)
     index_client = pc.Index(INDEX_NAME)

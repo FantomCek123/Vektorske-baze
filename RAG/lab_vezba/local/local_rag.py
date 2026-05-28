@@ -6,9 +6,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 COLLECTION_NAME = "taxi_driver_screenplay"
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def init_local_clients():
-    qdrant_client = QdrantClient(url="http://localhost:6333")
+    qdrant_client = QdrantClient(url="http://qdrant-db:6333")
     embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     return qdrant_client, embedding_model
 
@@ -37,16 +37,16 @@ def ask_local_rag(user_query):
 
     start_generisanje = time.time()
     try:
-        response = requests.post("http://localhost:11434/api/chat", json={
-                            "model": "llama3.2:latest ", 
-                            "messages": [{"role": "user", "content": prompt}],
-                            "stream": False,
-                            "options": {
-                                "num_predict": 60,
-                                "temperature": 0.1,
-                                "num_ctx": 512,       
-                                "num_thread": 4,
-                            } }, timeout=300)
+        response = requests.post("http://ollama-service:11434/api/chat", json={
+                    "model": "llama3.2:latest", 
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    "options": {
+                        "num_predict": 60,
+                        "temperature": 0.1,
+                        "num_ctx": 512,       
+                        "num_thread": 4,
+                    } }, timeout=300)
         vreme_generisanja = time.time() - start_generisanje
         
         res_json = response.json()

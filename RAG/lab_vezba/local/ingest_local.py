@@ -3,10 +3,11 @@ import re
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, ProductQuantization, ProductQuantizationConfig, CompressionRatio
 from langchain_huggingface import HuggingFaceEmbeddings
+import numpy as np
 
-qdrant = QdrantClient(url="http://localhost:6333")
+
+qdrant = QdrantClient(url="http://qdrant-db:6333")
 COLLECTION_NAME = "taxi_driver_screenplay"  
-
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 def init_collection():
@@ -56,7 +57,7 @@ def ingest_document(putanja_do_fajla):
         if len(chunk.strip()) < 15:
             continue
             
-        kontekstualni_tekst = f"[Film: Taxi Driver | Scena {index + 1}]\n{chunk}"
+        kontekstualni_tekst = f"\n{chunk}"
         
         print(f"Indeksiram scenu {index + 1}/{len(chunks)}...")
 
@@ -68,7 +69,6 @@ def ingest_document(putanja_do_fajla):
             payload={
                 "text": kontekstualni_tekst,
                 "film": "Taxi Driver",
-                "scena_broj": index + 1
             }
         )
         points.append(point)
@@ -76,13 +76,19 @@ def ingest_document(putanja_do_fajla):
     qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
     print(f"\nUspelo! Ubačeno {len(points)} pametnih scena u Qdrant bazu sa PQ optimizacijom.")
 
+def apply_random_projection(embedding, target_dim=384, source_dim=768, seed=42):
+    rng = np.random.default_rng(seed)    
+    projection_matrix = rng.normal(0.0, 1.0 / np.sqrt(target_dim), size=(source_dim, target_dim))
+    vector = np.array(embedding)
+    projected_vector = np.dot(vector, projection_matrix)
+    return projected_vector.tolist()
+
 if __name__ == "__main__":
     init_collection()
     
     putanja_scenarija = "Taxi-Driver-Script.txt" 
     
     if os.path.exists(putanja_scenarija):
-        print(f"Pronađen fajl {putanja_scenarija}. Pokrećem unos...")
         ingest_document(putanja_scenarija)
     else:
         print(f"Greška: Fajl '{putanja_scenarija}' se ne nalazi u ovom folderu. Proveri putanju!")

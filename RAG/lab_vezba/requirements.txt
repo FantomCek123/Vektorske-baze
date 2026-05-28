@@ -1,0 +1,9 @@
+streamlit
+python-dotenv
+qdrant-client
+pinecone-client
+langchain-huggingface
+langchain-google-genai
+requests
+numpy
+sentence-transformers
