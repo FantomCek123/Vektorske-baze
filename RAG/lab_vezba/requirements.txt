@@ -1,7 +1,7 @@
 streamlit
 python-dotenv
 qdrant-client
-pinecone-client
+pinecone
 langchain-huggingface
 langchain-google-genai
 requests

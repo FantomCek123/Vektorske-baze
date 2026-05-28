@@ -42,10 +42,10 @@ def ask_local_rag(user_query):
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
                     "options": {
-                        "num_predict": 60,
+                        "num_predict": 100,
                         "temperature": 0.1,
                         "num_ctx": 512,       
-                        "num_thread": 4,
+                        "num_thread": 8,
                     } }, timeout=300)
         vreme_generisanja = time.time() - start_generisanje
         

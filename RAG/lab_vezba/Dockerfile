@@ -17,4 +17,4 @@ COPY . .
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD python local/ingest_local.py && python cloud/ingest_cloud.py && streamlit run app.py --server.port=8501 --server.address=0.0.0.0
