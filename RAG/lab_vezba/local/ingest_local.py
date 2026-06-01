@@ -2,12 +2,11 @@ import os
 import re
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, ProductQuantization, ProductQuantizationConfig, CompressionRatio
-from langchain_huggingface import HuggingFaceEmbeddings
-import numpy as np
-
+from langchain_huggingface import HuggingFaceEmbeddings  # PROMENJENO
 
 qdrant = QdrantClient(url="http://qdrant-db:6333")
-COLLECTION_NAME = "taxi_driver_screenplay"  
+COLLECTION_NAME = "taxi_driver_screenplay" 
+
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 def init_collection():
@@ -24,7 +23,7 @@ def init_collection():
                 )
             )
         )
-        print(f"Uspešno kreirana nova kolekcija: '{COLLECTION_NAME}'")
+        print(f"Uspešno kreirana nova lokalna kolekcija: '{COLLECTION_NAME}'")
 
 def chunk_screenplay_by_scenes(text):
     raw_scenes = re.split(r'(CUT TO:|INT\.|EXT\.)', text)
@@ -51,37 +50,38 @@ def ingest_document(putanja_do_fajla):
     print("Delim scenario na logičke scene...")
     chunks = chunk_screenplay_by_scenes(raw_text)
     
-    points = []
+    svi_tekstovi = []
+    validni_indeksi = [] 
     
     for index, chunk in enumerate(chunks):
         if len(chunk.strip()) < 15:
             continue
             
         kontekstualni_tekst = f"\n{chunk}"
-        
-        print(f"Indeksiram scenu {index + 1}/{len(chunks)}...")
+        svi_tekstovi.append(kontekstualni_tekst)
+        validni_indeksi.append(index + 1)
 
-        vector = embedding_model.embed_query(kontekstualni_tekst)
-        
+    print(f"Pripremljeno {len(svi_tekstovi)} scena za lokalno indeksiranje.")
+    print("Generišem vektore lokalno preko HuggingFace modela...")
+    
+    svi_vektori = embedding_model.embed_documents(svi_tekstovi)
+    
+    print("Vektori uspešno generisani. Pakujem podatke za Qdrant...")
+    points = []
+    
+    for i, vector in enumerate(svi_vektori):
         point = PointStruct(
-            id=index + 1,
+            id=validni_indeksi[i],
             vector=vector,
             payload={
-                "text": kontekstualni_tekst,
+                "text": svi_tekstovi[i],
                 "film": "Taxi Driver",
             }
         )
         points.append(point)
         
     qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
-    print(f"\nUspelo! Ubačeno {len(points)} pametnih scena u Qdrant bazu sa PQ optimizacijom.")
-
-def apply_random_projection(embedding, target_dim=384, source_dim=768, seed=42):
-    rng = np.random.default_rng(seed)    
-    projection_matrix = rng.normal(0.0, 1.0 / np.sqrt(target_dim), size=(source_dim, target_dim))
-    vector = np.array(embedding)
-    projected_vector = np.dot(vector, projection_matrix)
-    return projected_vector.tolist()
+    print(f"\nUspelo! Ubačeno {len(points)} scena u lokalnu Qdrant bazu.")
 
 if __name__ == "__main__":
     init_collection()
@@ -91,4 +91,4 @@ if __name__ == "__main__":
     if os.path.exists(putanja_scenarija):
         ingest_document(putanja_scenarija)
     else:
-        print(f"Greška: Fajl '{putanja_scenarija}' se ne nalazi u ovom folderu. Proveri putanju!")
+        print(f"Greška: Fajl '{putanja_scenarija}' se ne nalazi u ovom folderu.")

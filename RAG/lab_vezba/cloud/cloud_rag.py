@@ -47,7 +47,7 @@ def ask_cloud_rag(user_query):
     
     vreme_pretrage = time.time() - start_pretraga
     context = "Nema pronađenog konteksta." if not search_results.matches else search_results.matches[0].metadata["text"]
-    prompt = f"Odgovori kratko na srpskom jeziku. Kontekst: {context} Pitanje: {user_query}"
+    prompt = f"Odgovori kratko na srpskom jeziku. Kontekst: {context} Pitanje: {user_query} u filmu Taxi Driver"
 
     start_generisanje = time.time()
     try:

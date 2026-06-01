@@ -33,7 +33,7 @@ def ask_local_rag(user_query):
     
     vreme_pretrage = time.time() - start_pretraga
     context = "Nema pronađenog konteksta." if not search_results.points else search_results.points[0].payload["text"]
-    prompt = f"Odgovori kratko na srpskom jeziku. Kontekst: {context} Pitanje: {user_query}"
+    prompt = f"Odgovori kratko na srpskom jeziku. Kontekst: {context} Pitanje: {user_query} u filmu Taxi Driver"
 
     start_generisanje = time.time()
     try:
@@ -42,7 +42,7 @@ def ask_local_rag(user_query):
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
                     "options": {
-                        "num_predict": 100,
+                        "num_predict": 60,
                         "temperature": 0.1,
                         "num_ctx": 512,       
                         "num_thread": 8,

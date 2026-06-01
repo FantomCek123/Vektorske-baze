@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   chatbot-app:
     build: .
@@ -12,6 +10,8 @@ services:
       - qdrant-db
       - ollama-service
     restart: always
+    volumes:
+      - chatbot_storage:/app/storage
 
   qdrant-db:
     image: qdrant/qdrant:latest
@@ -39,3 +39,4 @@ services:
 volumes:
   qdrant_storage:
   ollama_storage:
+  chatbot_storage:
