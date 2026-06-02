@@ -1,9 +1,12 @@
 streamlit
 python-dotenv
 qdrant-client
-pinecone
+langchain-qdrant
+langchain-pinecone
 langchain-huggingface
 langchain-google-genai
 requests
 numpy
 sentence-transformers
+transformers
+torch

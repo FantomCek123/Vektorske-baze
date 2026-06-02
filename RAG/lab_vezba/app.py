@@ -2,23 +2,29 @@ import streamlit as st
 from dotenv import load_dotenv
 load_dotenv()
 
+
+if "rezim_rada" not in st.session_state:
+    st.session_state["rezim_rada"] = "Local"
+
 modeli_spremni = "izvrseno_ucitavanje" in st.session_state
 
 if modeli_spremni:
-    from local.local_rag import ask_local_rag
-    from cloud.cloud_rag import ask_cloud_rag
-    import CRUD.qdrant_crud as qd
-    import CRUD.pinecone_crud as pc
+    from api.rag_service import ask_rag
+    from api.crud_service import create_or_update_scene, read_scene, delete_scene
 
 with st.sidebar:
     st.title("Podešavanja")
-    rezim_rada = st.radio("Izaberi model pretrage:", ("Local", "Cloud"))
+    
+
+    st.radio("Izaberi model pretrage:", ("Local", "Cloud"), key="rezim_rada")    
     st.markdown("---")
     
     tip_stranice = st.selectbox("Izaberi režim rada:", ["Chatbot", "CRUD"])
     st.markdown("---")
     
     placeholder_stats = st.empty()
+
+rezim_rada_trenutni = st.session_state["rezim_rada"]
 
 left_pad, main_col, right_pad = st.columns([1, 3, 1])
 
@@ -38,10 +44,7 @@ if tip_stranice == "Chatbot":
                 
             with st.chat_message("assistant"):
                 with st.spinner("AI analizira..."):
-                    if rezim_rada == "Local":
-                        odgovor, t_search, t_gen = ask_local_rag(user_pitanje)
-                    else:
-                        odgovor, t_search, t_gen = ask_cloud_rag(user_pitanje)
+                    odgovor, t_search, t_gen = ask_rag(user_pitanje)
                     st.write(odgovor)
             
         with placeholder_stats.container():
@@ -53,22 +56,19 @@ if tip_stranice == "Chatbot":
 elif tip_stranice == "CRUD" and modeli_spremni:
     with main_col:        
         scena_id = st.number_input("ID Scene:", min_value=1)
+        crud_akcija = st.radio("", ["CREATE / UPDATE", "READ", "DELETE"], horizontal=True)
 
-        crud_akcija = st.radio("",["CREATE / UPDATE", "READ", "DELETE"], horizontal=True)
-
-        
         if crud_akcija == "CREATE / UPDATE":
             tekst_scene = st.text_area("Tekst scene / kontekst:")
+            film_ime = st.text_input("Naziv filma:", value="Taxi Driver")
+            
             if st.button("Izvrši upis u bazu"):
                 if tekst_scene:
                     with st.spinner("Upisivanje i generisanje embeddinga..."):
-                        if rezim_rada == "Local":
-                            uspeh = qd.create_or_update_qdrant(scena_id, tekst_scene, film_ime)
-                        else:
-                            uspeh = pc.create_or_update_pinecone(scena_id, tekst_scene, film_ime)
+                        uspeh = create_or_update_scene(scena_id, tekst_scene, film_ime)
                     
                     if uspeh:
-                        st.success(f"Uspešno upisano u {rezim_rada} bazu pod ID-jem: {scena_id if rezim_rada == 'Local' else f'scena_{scena_id}'}")
+                        st.success(f"Uspešno upisano u {rezim_rada_trenutni} bazu pod ID-jem: {scena_id if rezim_rada_trenutni == 'Local' else f'scena_{scena_id}'}")
                     else:
                         st.error("Baza je vratila grešku prilikom upisa.")
                 else:
@@ -77,16 +77,13 @@ elif tip_stranice == "CRUD" and modeli_spremni:
         elif crud_akcija == "READ":
             if st.button("Pronađi scenu"):
                 with st.spinner("Pretraga po ID-ju..."):
-                    if rezim_rada == "Local":
-                        podaci = qd.read_qdrant(scena_id)
-                    else:
-                        podaci = pc.read_pinecone(scena_id)
+                    podaci = read_scene(scena_id)
                         
                 if podaci:
-                    st.markdown(f"**Pronađeni podaci u {rezim_rada} bazi:**")
+                    st.markdown(f"**Pronađeni podaci u {rezim_rada_trenutni} bazi:**")
                     st.json(podaci)
                 else:
-                    st.warning(f"Nema podataka za ovaj ID u {rezim_rada} bazi.")
+                    st.warning(f"Nema podataka za ovaj ID u {rezim_rada_trenutni} bazi.")
                     
         elif crud_akcija == "DELETE":
             potvrda = st.checkbox("Dodatna potvrda")
@@ -94,44 +91,35 @@ elif tip_stranice == "CRUD" and modeli_spremni:
             if st.button("Obriši iz baze"):
                 if potvrda:
                     with st.spinner("Brisanje iz baze..."):
-                        if rezim_rada == "Local":
-                            uspeh = qd.delete_qdrant(scena_id)
-                        else:
-                            uspeh = pc.delete_pinecone(scena_id)
+                        uspeh = delete_scene(scena_id)
                             
                     if uspeh:
-                        st.success(f"Scena uspešno obrisana iz {rezim_rada} baze.")
+                        st.success(f"Scena uspešno obrisana iz {rezim_rada_trenutni} baze.")
                     else:
                         st.error("Došlo je do greške prilikom brisanja.")
                 else:
                     st.error("Moraš prvo štiklirati polje za potvrdu brisanja!")
 
-# ==================== INITIAL LOADING SYSTEM ====================
 if not modeli_spremni:
     with main_col:
         st.subheader("Inicijalizacija sistema")
+        progres_bar = st.progress(0)
+        
+        from config.vector_stores import get_vector_store
+        from config.models import get_llm
 
+        with st.spinner("Učitavanje lokalnih modela i Qdrant-a..."):
+            st.session_state["rezim_rada"] = "Local"
+            get_vector_store()
+            get_llm()
+            progres_bar.progress(50)
         
+        with st.spinner("Učitavanje cloud servisa i Pinecone-a..."):
+            st.session_state["rezim_rada"] = "Cloud"
+            get_vector_store()
+            get_llm()
+            progres_bar.progress(100)
         
-        with st.spinner("Lokalni modeli"):
-            progres_bar = st.progress(0)
-            from local.local_rag import init_local_clients
-            init_local_clients()
-        progres_bar.progress(25)
-        
-        with st.spinner("Cloud servisi"):
-            from cloud.cloud_rag import init_cloud_clients
-            init_cloud_clients()
-        progres_bar.progress(50)
-        
-        with st.spinner("Qdrant moduli"):
-            import CRUD.qdrant_crud as qd
-        progres_bar.progress(75)
-        
-        with st.spinner("Pinecone moduli"):
-            import CRUD.pinecone_crud as pc
-        progres_bar.progress(100)
-        
-        # Postavljanje stanja i automatski rerun aplikacije
+        st.session_state["rezim_rada"] = "Local"
         st.session_state["izvrseno_ucitavanje"] = True
         st.rerun()

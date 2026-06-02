@@ -8,10 +8,10 @@ services:
       - .env
     depends_on:
       - qdrant-db
-      - ollama-service
-    restart: always
+    restart: "on-failure:5"
     volumes:
       - chatbot_storage:/app/storage
+      - hf_cache:/root/.cache/huggingface
 
   qdrant-db:
     image: qdrant/qdrant:latest
@@ -21,22 +21,7 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
 
-  ollama-service:
-    image: ollama/ollama:latest
-    container_name: ollama_local
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_storage:/root/.ollama
-    entrypoint: [ "/bin/sh", "-c" ]
-    command: 
-      - |
-        ollama serve &
-        sleep 5
-        ollama pull llama3.2:latest
-        tail -f /dev/null
-
 volumes:
   qdrant_storage:
-  ollama_storage:
   chatbot_storage:
+  hf_cache: 
