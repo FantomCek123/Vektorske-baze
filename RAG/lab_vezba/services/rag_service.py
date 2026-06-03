@@ -14,8 +14,8 @@ def _format_docs(docs):
 def ask_rag(user_query: str):
     rezim_rada = st.session_state.get("rezim_rada", "Local")
     
-    llm = get_llm()
-    db = get_vector_store()
+    llm = get_llm(rezim_rada)
+    db = get_vector_store(rezim_rada)
     retriever = db.as_retriever(search_kwargs={"k": 3})
     
     prompt_template = ChatPromptTemplate.from_template(
