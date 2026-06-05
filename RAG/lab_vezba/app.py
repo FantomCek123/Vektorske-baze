@@ -1,6 +1,18 @@
 import streamlit as st
 from dotenv import load_dotenv
+import os
+import warnings  
+import logging   
 load_dotenv()
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3" 
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
+logging.getLogger("transformers.tokenization_utils_base").setLevel(logging.ERROR)
+
+warnings.filterwarnings("ignore", message=".*flash-attention.*")
+warnings.filterwarnings("ignore", message=".*Special tokens have been added.*")
 
 
 if "rezim_rada" not in st.session_state:
@@ -9,8 +21,8 @@ if "rezim_rada" not in st.session_state:
 modeli_spremni = "izvrseno_ucitavanje" in st.session_state
 
 if modeli_spremni:
-    from api.rag_service import ask_rag
-    from api.crud_service import create_or_update_scene, read_scene, delete_scene
+    from services.rag_service import ask_rag
+    from repositories.vector_repository import create_or_update_scene, read_scene, delete_scene
 
 with st.sidebar:
     st.title("Podešavanja")
@@ -64,62 +76,53 @@ elif tip_stranice == "CRUD" and modeli_spremni:
             
             if st.button("Izvrši upis u bazu"):
                 if tekst_scene:
-                    with st.spinner("Upisivanje i generisanje embeddinga..."):
-                        uspeh = create_or_update_scene(scena_id, tekst_scene, film_ime)
+                    with st.spinner("Upisivanje..."):
+                        uspeh = create_or_update_scene(scena_id, tekst_scene, film_ime, mode=rezim_rada_trenutni)
                     
                     if uspeh:
-                        st.success(f"Uspešno upisano u {rezim_rada_trenutni} bazu pod ID-jem: {scena_id if rezim_rada_trenutni == 'Local' else f'scena_{scena_id}'}")
-                    else:
-                        st.error("Baza je vratila grešku prilikom upisa.")
+                        st.success(f"Uspešno upisano u {rezim_rada_trenutni} bazu!")
                 else:
                     st.error("Tekst scene ne može biti prazan!")
-                    
+                        
         elif crud_akcija == "READ":
             if st.button("Pronađi scenu"):
-                with st.spinner("Pretraga po ID-ju..."):
-                    podaci = read_scene(scena_id)
+                with st.spinner("Pretraga..."):
+                    podaci = read_scene(str(scena_id), mode=rezim_rada_trenutni)
                         
                 if podaci:
-                    st.markdown(f"**Pronađeni podaci u {rezim_rada_trenutni} bazi:**")
                     st.json(podaci)
                 else:
-                    st.warning(f"Nema podataka za ovaj ID u {rezim_rada_trenutni} bazi.")
+                    st.warning(f"Nema podataka za ovaj ID.")
                     
         elif crud_akcija == "DELETE":
             potvrda = st.checkbox("Dodatna potvrda")
-            
             if st.button("Obriši iz baze"):
                 if potvrda:
-                    with st.spinner("Brisanje iz baze..."):
-                        uspeh = delete_scene(scena_id)
-                            
+                    with st.spinner("Brisanje..."):
+                        uspeh = delete_scene(str(scena_id), mode=rezim_rada_trenutni)
                     if uspeh:
-                        st.success(f"Scena uspešno obrisana iz {rezim_rada_trenutni} baze.")
-                    else:
-                        st.error("Došlo je do greške prilikom brisanja.")
+                        st.success("Obrisano!")
                 else:
-                    st.error("Moraš prvo štiklirati polje za potvrdu brisanja!")
+                    st.error("Moraš štiklirati potvrdu!")
 
 if not modeli_spremni:
     with main_col:
         st.subheader("Inicijalizacija sistema")
         progres_bar = st.progress(0)
         
-        from config.vector_stores import get_vector_store
-        from config.models import get_llm
-
-        with st.spinner("Učitavanje lokalnih modela i Qdrant-a..."):
-            st.session_state["rezim_rada"] = "Local"
-            get_vector_store()
-            get_llm()
+        with st.spinner("Učitavanje svih servisa..."):
+            from repositories.vector_repository import _get_db
+            from config.models import get_llm
+            
+            st.session_state["db_local"] = _get_db(mode="Local")
+            progres_bar.progress(25)        
+            st.session_state["llm_local"] = get_llm("Local")
             progres_bar.progress(50)
-        
-        with st.spinner("Učitavanje cloud servisa i Pinecone-a..."):
-            st.session_state["rezim_rada"] = "Cloud"
-            get_vector_store()
-            get_llm()
+            
+            st.session_state["db_cloud"] = _get_db(mode="Cloud")
+            progres_bar.progress(75)
+            st.session_state["llm_cloud"] = get_llm("Cloud")
             progres_bar.progress(100)
-        
-        st.session_state["rezim_rada"] = "Local"
-        st.session_state["izvrseno_ucitavanje"] = True
-        st.rerun()
+            
+            st.session_state["izvrseno_ucitavanje"] = True
+            st.rerun()

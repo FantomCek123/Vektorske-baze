@@ -14,8 +14,11 @@ def _format_docs(docs):
 def ask_rag(user_query: str):
     rezim_rada = st.session_state.get("rezim_rada", "Local")
     
-    llm = get_llm(rezim_rada)
-    db = get_vector_store(rezim_rada)
+
+    llm = st.session_state["llm_local"] if st.session_state["rezim_rada"] == "Local" else st.session_state["llm_cloud"]
+    db = st.session_state["db_local"] if st.session_state["rezim_rada"] == "Local" else st.session_state["db_cloud"]
+    
+    # ... dalje tvoja RAG logika
     retriever = db.as_retriever(search_kwargs={"k": 3})
     
     prompt_template = ChatPromptTemplate.from_template(

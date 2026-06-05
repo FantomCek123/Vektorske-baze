@@ -8,8 +8,9 @@ services:
       - .env
     depends_on:
       - qdrant-db
-    restart: "on-failure:5"
+    restart: "on-failure:3"
     volumes:
+      - .:/app
       - chatbot_storage:/app/storage
       - hf_cache:/root/.cache/huggingface
 
@@ -19,7 +20,7 @@ services:
     ports:
       - "6333:6333"
     volumes:
-      - qdrant_storage:/qdrant/storage
+      - qdrant_storage:/qdrant/storage:z
 
 volumes:
   qdrant_storage:
